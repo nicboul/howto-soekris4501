@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+                      "http://www.w3.org/TR/xhtml111/DTD/xhtml111.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+	<head>
+		<title>embedded openbsd on soekris4501 with flashboot</title>
+		<link rel="stylesheet" href="style.css"/>
+	</head>
+
+	<body>
+
+	<hr/>
+	<pre style="text-align: center;">This tutorial is intended to guide you while creating an OpenBSD embedded system aimed at running on a soekris net4501</pre>
+	<hr/>
+	<pre style="text-align: right;"> Nicolas Bouliane - nicboul[at]gmail.com              </pre>
+
+	<h1> The hardware </h1>
+
+	<img src="./net4501.jpg" height="15%" width="15%"/>
+	<img src="./sandisk.jpg" height="15%" width="15%"/>
+	<img src="./db9usb.jpg" height="15%" width="15%"/>
+	<img src="./db9ff.jpg" height="15%" width="15%"/>
+
+	<p>
+	You need a soekris net4501, a compact flash reader, a serial cable, and a compact flash disk.
+	I'm using a USB to DB9 serial adapter, because my laptop has no serial port on it. The null modem
+	adapter F/F is because the USB adapter and the port on the soekris are male. So if you're to buy
+	a cable, take one with a female connector.
+	</p>
+
+	</p>
+
+	<h1> Booting the device </h1>
+	<p>
+	Once we get the device connected, we can boot the bios to see if our setup is well configured.
+	I'm using minicom on debian because I just can't get tip(1) or cu(1) working with OpenBSD and my
+	usb to serial adapter.
+	The serial port speed is 19200 baud, 8N1 (8bits Data, Parity None, Stopbits 1).
+	For further information have a look at the
+	<a href="http://wiki.soekris.info/Connecting_to_the_serial_console">soekris wiki</a>.
+	<br/><br/>
+
+	If you get the comBIOS output, your serial client is configured properly !
+
+	</p>
+
+	<hr/><pre>
+	comBIOS ver. 1.33  20080103  Copyright (C) 2000-2007 Soekris Engineering.
+
+	net45xx
+
+	0064 Mbyte Memory                        CPU Elan SC520 133 Mhz
+
+
+	   Seconds to automatic boot.   Press Ctrl-P for entering Monitor.
+
+	NSC DP83815/DP83816 Fast Ethernet UNDI, v1.03
+	Copyright (C) 2002, 2003 National Semiconductor Corporation
+	All rights reserved.
+
+	Pre-boot eXecution Environment  PXE-2.0 (build 082)
+	Copyright (C) 1997-2000  Intel Corporation
+
+	PXE-E61: Media test failure, check cable
+	PXE-M0F: Exiting MacPhyter PXE ROM.
+
+	No Boot device available, enter monitor.
+
+
+	comBIOS Monitor.   Press ? for help.<hr/></pre>
+
+	<p> By booting the device with an empty compact flash disk, we get the LBA geometry of it. </p>
+	<hr/><pre>
+	0064 Mbyte Memory                        CPU Elan SC520 133 Mhz
+
+	Pri Mas  SMC032AFG6E                     LBA 492-8-16  31 Mbyte
+
+	   Seconds to automatic boot.   Press Ctrl-P for entering Monitor.
+
+	Non-System disk or disk error
+	Replace and press any key when ready<hr/></pre>
+
+	<p>
+	So what we get is Cylinder(492), Heads or Tracks/Cylinder(8), Sectors/Track(16).
+	<br/>
+	If you multiply 492 * 8 * 16, you get 62976. The value we used in the previous step to create the empty 32mb file.
+	</p>
+
+	<h1> Creating the virtual disk </h1>
+	<p> Lets put our hardware aside for a little while. We now need to create a virtual disk.</p>
+
+	<hr/><pre>
+	# dd if=/dev/zero of=disk32.image bs=512 count=62976
+	62976+0 records in
+	62976+0 records out
+	32243712 bytes transferred in 0.959 secs (33597804 bytes/sec)
+
+	# vnconfig -c vnd0 ./disk32.image<hr/></pre>
+
+	<p> I'm using 32mb compact flash, and my goal here is to create a less than &lt;15mb firmware,
+	this is why I'm creating a 32mb file. You can create yours as big as you want.
+	</p>
+
+	<h1> Making the virtual disk bootable </h1>
+
+	<hr/><pre>
+	# fdisk -e vnd0
+	Enter 'help' for information
+	fdisk: 1> disk
+	Disk: vnd0      geometry: 629/1/100 [62976 Sectors]
+	Change disk geometry? [n] y
+	BIOS Cylinders [1 - 1024]: [629] 492
+	BIOS Heads [1 - 256]: [1] 8
+	BIOS Sectors [1 - 63]: [63] 16
+	fdisk: 1> edit 3
+		    Starting         Ending         LBA Info:
+	 #: id      C   H   S -      C   H   S [       start:        size ]
+	-------------------------------------------------------------------------------
+	 3: 00      0   0   0 -      0   0   0 [           0:           0 ] unused      
+	Partition id ('0' to disable)  [0 - FF]: [0] (? for help) A6
+	Do you wish to edit in CHS mode? [n] 
+	offset: [0] 32
+	size: [0] 62944
+	fdisk:*1> reinit
+	In memory copy is initialized to:
+	Offset: 0       Signature: 0xAA55
+		    Starting         Ending         LBA Info:
+	 #: id      C   H   S -      C   H   S [       start:        size ]
+	-------------------------------------------------------------------------------
+	 0: 00      0   0   0 -      0   0   0 [           0:           0 ] unused      
+	 1: 00      0   0   0 -      0   0   0 [           0:           0 ] unused      
+	 2: 00      0   0   0 -      0   0   0 [           0:           0 ] unused      
+	*3: A6      0   1   1 -    491   7  16 [          16:       62960 ] OpenBSD     
+	Use 'write' to update disk.
+	fdisk:*1> update
+	Machine code updated.
+	fdisk:*1> write
+	Writing MBR at offset 0.
+	fdisk: 1> quit<hr/></pre>
+
+	<h1> The disk label </h1>
+
+	<hr/><pre>
+	# disklabel -E vnd0
+	Label editor (enter '?' for help at any prompt)
+	> e
+	Changing device parameters for /dev/rvnd0c:
+	disk type: [vnd] ESDI
+	label name: [fictitious] net4501
+	sectors/track: [100] 16
+	tracks/cylinder: [1] 8
+	sectors/cylinder: [100] 128
+	number of cylinders: [629] 492
+	total sectors: [62976] 
+	> a a
+	offset: [0] 32
+	size: [62944] 
+	FS type: [4.2BSD] 
+	> p
+	OpenBSD area: 0-62976; size: 62976; free: 32
+	#                size           offset  fstype [fsize bsize  cpg]
+	  a:            62944               32  4.2BSD   2048 16384    1 
+	  c:            62976                0  unused                   
+	> q
+	Write new label?: [y]<hr/></pre>
+
+	<h1> Creating the file system </h1>
+
+	<hr/><pre>
+	# newfs /dev/rvnd0a
+	newfs: reduced number of fragments per cylinder group from 3928 to 3912 to enlarge last cylinder group
+	/dev/rvnd0a: 30.7MB in 62944 sectors of 512 bytes
+	5 cylinder groups of 7.64MB, 489 blocks, 1024 inodes each
+	super-block backups (for fsck -b #) at:
+	 32, 15680, 31328, 46976, 62624,<hr/></pre>
+
+	<h1> Getting flashboot </h1>
+	<p> Cloning the flashboot repository. </p>
+	<hr/><pre>
+	git clone git://github.com/openbsd/flashboot.git<hr/></pre>
+
+	<h1> Building the release </h1>
+	<p> The OpenBSD base system must be fetch and compiled. </p>
+	<hr/><pre>
+	# sudo ./build-release.sh
+	<hr/></pre>
+
+	<h1> System customisation </h1>
+	<p> Choosing the options that suits our needs. </p>
+
+	<h1> Building the kernel </h1>
+	<p> The kernel is compiled, an the ramdisk is piggybacked into it. </p>
+	<hr/><pre>
+	# sudo ./build-kernel.sh
+	<hr/></pre>
+
+	<h1> Installing OpenBSD </h1>
+	<p> The second stage bootloader and the kernel are installed on the virtual disk. </p>
+	<hr/><pre>
+	# mount /dev/vnd0a /mnt
+	# cp /usr/mdec/boot /mnt/
+	# cp /home/nib/fb/flashboot/obj/
+	cp [...]/flashboot/obj/bsd.rd /mnt/bsd
+	/usr/mdec/installboot /mnt/boot /usr/mdec/biosboot vnd0<hr/></pre>
+
+	<h1> Flashing the image </h1>
+	<p> The virtual disk is copied on the compact flash disk. </p>
+	<hr/><pre>
+	# dd if=disk32.image of=/dev/rsd0c
+	62976+0 records in
+	62976+0 records out
+	32243712 bytes transferred in 447.665 secs (72026 bytes/sec)
+
+	# umount /mnt
+	# vnconfig -u vnd0<hr/></pre>
+
+	<h1> Booting OpenBSD </h1>
+	<p> OpenBSD is booted from the net4501 and a login is prompted. </p>
+	<hr/><pre>
+	comBIOS ver. 1.33  20080103  Copyright (C) 2000-2007 Soekris Engineering.
+
+	net45xx
+
+	0064 Mbyte Memory                        CPU Elan SC520 133 Mhz 
+
+	Pri Mas  SMC032AFG6E                     LBA 492-8-16  31 Mbyte
+
+	   Seconds to automatic boot.   Press Ctrl-P for entering Monitor.
+	Using drive 0, partition 3.
+	Loading...
+	probing: pc0 com0 com1 pci mem[639K 63M a20=on] 
+	disk: hd0+
+	>> OpenBSD/i386 BOOT 3.17
+	boot> stty com0 19200
+	boot> set tty com0
+	>> OpenBSD/i386 BOOT 3.17
+	boot> boot
+	booting hd0a:/bsd: 24116980+462784 [61+128624+120370]=0x17add34
+	entry point at 0x200120
+
+	[ using 249472 bytes of bsd ELF symbol table ]
+	Copyright (c) 1982, 1986, 1989, 1991, 1993
+		The Regents of the University of California.  All rights reserved.
+	Copyright (c) 1995-2012 OpenBSD. All rights reserved.  http://www.OpenBSD.org
+
+	OpenBSD 5.1 (SOEKRIS4501) #0: Mon May 28 19:52:53 MDT 2012
+	    nib@t41.my.domain:/obj/SOEKRIS4501
+	cpu0: AMD Am486DX4 W/B or Am5x86 W/B 150 ("AuthenticAMD" 486-class)
+	cpu0: FPU
+	real mem  = 66646016 (63MB)
+	avail mem = 40996864 (39MB)
+	mainbus0 at root
+	bios0 at mainbus0: AT/286+ BIOS, date 20/80/03, BIOS32 rev. 0 @ 0xf7840
+	pcibios0 at bios0: rev 2.0 @ 0xf0000/0x10000
+	pcibios0: pcibios_get_intr_routing - function not supported
+	pcibios0: PCI IRQ Routing information unavailable.
+	pcibios0: PCI bus #0 is the last bus
+	bios0: ROM list: 0xc8000/0x9000
+	cpu0 at mainbus0: (uniprocessor)
+	pci0 at mainbus0 bus 0: configuration mode 1 (bios)
+	elansc0 at pci0 dev 0 function 0 "AMD ElanSC520 PCI" rev 0x00: product 0 stepping 1.1, CPU clock 133MHz, reset 0
+	gpio0 at elansc0: 32 pins
+	sis0 at pci0 dev 18 function 0 "NS DP83815 10/100" rev 0x00, DP83816A: irq 10, address 00:00:24:ca:a4:68
+	nsphyter0 at sis0 phy 0: DP83815 10/100 PHY, rev. 1
+	sis1 at pci0 dev 19 function 0 "NS DP83815 10/100" rev 0x00, DP83816A: irq 11, address 00:00:24:ca:a4:69
+	nsphyter1 at sis1 phy 0: DP83815 10/100 PHY, rev. 1
+	sis2 at pci0 dev 20 function 0 "NS DP83815 10/100" rev 0x00, DP83816A: irq 5, address 00:00:24:ca:a4:6a
+	nsphyter2 at sis2 phy 0: DP83815 10/100 PHY, rev. 1
+	isa0 at mainbus0
+	com0 at isa0 port 0x3f8/8 irq 4: ns16550a, 16 byte fifo
+	com0: console
+	com1 at isa0 port 0x2f8/8 irq 3: ns16550a, 16 byte fifo
+	pckbc0 at isa0 port 0x60/5
+	pckbd0 at pckbc0 (kbd slot)
+	pckbc0: using irq 1 for kbd slot
+	wskbd0 at pckbd0: console keyboard
+	wdc0 at isa0 port 0x1f0/8 irq 14
+	wd0 at wdc0 channel 0 drive 0: <SMC032AFG6E>
+	wd0: 1-sector PIO, LBA, 30MB, 62976 sectors
+	wd0(wdc0:0:0): using BIOS timings
+	npx0 at isa0 port 0xf0/16: reported by CPUID; using exception 16
+	root on rd0a swap on rd0b dump on rd0b
+	********* flashboot
+	/dev/rwd0a: file system is clean; not checking
+	/dev/rwd0a: file system is clean; not checking
+	Copying additional configuration files from flash to ramdisk
+	WARNING: /flash/conf/ not found
+	setting tty flags
+	building ps databases: dev.
+	net.inet.tcp.ecn: 0 -> 1
+	ddb.panic: 1 -> 0
+	ddb.console: 0 -> 1
+	kern.splassert: 1 -> 2
+	/etc/rc[190]: pfctl: not found
+	starting network
+	Daemons: starting system logger
+	 cron.
+	********* finished /etc/rc
+	Jun 13 01:08:10 localhost init: kernel security level changed from 0 to 1
+
+	OpenBSD/i386 (localhost) (tty00)
+
+	login:<hr/></pre>
+	</body>
+
+</html>
+

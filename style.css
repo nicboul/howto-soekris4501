@@ -1,0 +1,18 @@
+body {
+    margin: 30px;
+}
+
+h1 {
+    color: orange;
+    font-size: 140%;
+}
+
+hr {
+    align: center;
+    background-color: orange;
+    border: none;
+    color: orange;
+    height: 1px;
+    width: 80%;
+}
+
