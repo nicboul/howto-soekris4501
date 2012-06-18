@@ -84,19 +84,19 @@
 	<p>
 	So what we get is Cylinder(492), Heads or Tracks/Cylinder(8), Sectors/Track(16).
 	<br/>
-	If you multiply 492 * 8 * 16, you get 62976. The value we used in the previous step to create the empty 32mb file.
+	If you multiply 492 * 8 * 16, you get 62976, the value we use in the next step to create the empty 32mb file.
 	</p>
 
 	<h1> Creating the virtual disk </h1>
 	<p> Lets put our hardware aside for a little while. We now need to create a virtual disk.</p>
 
 	<hr/><pre>
-	# dd if=/dev/zero of=disk32.image bs=512 count=62976
+	# <a href="http://www.openbsd.org/cgi-bin/man.cgi?query=dd&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">dd</a> if=/dev/zero of=disk32.image bs=512 count=62976
 	62976+0 records in
 	62976+0 records out
 	32243712 bytes transferred in 0.959 secs (33597804 bytes/sec)
 
-	# vnconfig -c vnd0 ./disk32.image<hr/></pre>
+	# <a href="http://www.openbsd.org/cgi-bin/man.cgi?query=vnconfig&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">vnconfig</a> -c vnd0 ./disk32.image<hr/></pre>
 
 	<p> I'm using 32mb compact flash, and my goal here is to create a less than &lt;15mb firmware,
 	this is why I'm creating a 32mb file. You can create yours as big as you want.
@@ -104,8 +104,10 @@
 
 	<h1> Making the virtual disk bootable </h1>
 
+	<p>Throughout the next steps, I encourage you to read the manual page of the tools we use.</p>
+
 	<hr/><pre>
-	# fdisk -e vnd0
+	# <a href="http://www.openbsd.org/cgi-bin/man.cgi?query=fdisk&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">fdisk</a> -e vnd0
 	Enter 'help' for information
 	fdisk: 1> disk
 	Disk: vnd0      geometry: 629/1/100 [62976 Sectors]
@@ -142,7 +144,7 @@
 	<h1> The disk label </h1>
 
 	<hr/><pre>
-	# disklabel -E vnd0
+	# <a href="http://www.openbsd.org/cgi-bin/man.cgi?query=disklabel&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">disklabel</a> -E vnd0
 	Label editor (enter '?' for help at any prompt)
 	> e
 	Changing device parameters for /dev/rvnd0c:
@@ -168,7 +170,7 @@
 	<h1> Creating the file system </h1>
 
 	<hr/><pre>
-	# newfs /dev/rvnd0a
+	# <a href="http://www.openbsd.org/cgi-bin/man.cgi?query=newfs&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">newfs</a> /dev/rvnd0a
 	newfs: reduced number of fragments per cylinder group from 3928 to 3912 to enlarge last cylinder group
 	/dev/rvnd0a: 30.7MB in 62944 sectors of 512 bytes
 	5 cylinder groups of 7.64MB, 489 blocks, 1024 inodes each
@@ -180,8 +182,10 @@
 	<hr/><pre>
 	git clone git://github.com/openbsd/flashboot.git<hr/></pre>
 
+	<p>My base system is OpenBSD 5.1, and the target firmware is the same version. Even though flashboot says that both can be different, I realised that it cause some problems. My suggestion is that your base system is the same version as the target firmware.
+
 	<h1> Building the release </h1>
-	<p> The OpenBSD base system must be fetch and compiled. </p>
+	<p> The OpenBSD base system must be fetch and compiled. Please read the <a href="https://github.com/openbsd/flashboot/blob/master/README.md">flashboot documentation</a> as well !</p>
 	<hr/><pre>
 	# sudo ./build-release.sh<hr/></pre>
 
@@ -200,7 +204,7 @@
 	# cp /usr/mdec/boot /mnt/
 	# cp /home/nib/fb/flashboot/obj/
 	cp [...]/flashboot/obj/bsd.rd /mnt/bsd
-	/usr/mdec/installboot /mnt/boot /usr/mdec/biosboot vnd0<hr/></pre>
+	/usr/mdec/<a href="http://www.openbsd.org/cgi-bin/man.cgi?query=installboot&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">installboot</a> /mnt/boot /usr/mdec/biosboot vnd0<hr/></pre>
 
 	<h1> Flashing the image </h1>
 	<p> The virtual disk is copied on the compact flash disk. </p>
