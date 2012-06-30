@@ -13,7 +13,7 @@
 	<hr/>
 	<pre style="text-align: center;">This tutorial is intended to guide you while creating an OpenBSD embedded system aimed at running on a soekris net4501</pre>
 	<hr/>
-	<pre style="text-align: right;"> Nicolas Bouliane - nicboul[at]gmail.com - June 12 2012             </pre>
+	<pre style="text-align: right;"> Nicolas Bouliane - http://inetrio.com - nicboul[at]gmail.com - June 30 2012               </pre>
 
 	<h1> The hardware </h1>
 
@@ -27,6 +27,10 @@
 	I'm using a USB to DB9 serial adapter, because my laptop has no serial port on it. The null modem
 	adapter F/F is because the USB adapter and the port on the soekris are male. So if you're to buy
 	a cable, take one with a female connector.
+	</p>
+
+	<p>
+	At the time of writing, I'm using OpenBSD 5.1
 	</p>
 
 	</p>
@@ -185,12 +189,21 @@
 	<p>My base system is OpenBSD 5.1, and the target firmware is the same version. Even though flashboot says that both can be different, I realised that it cause some problems. My suggestion is that your base system is the same version as the target firmware.
 
 	<h1> Building the release </h1>
-	<p> The OpenBSD base system must be fetch and compiled. Please read the <a href="https://github.com/openbsd/flashboot/blob/master/README.md">flashboot documentation</a> as well !</p>
+	<p> The OpenBSD base system must be fetch and compiled.</p>
 	<hr/><pre>
 	# sudo ./build-release.sh<hr/></pre>
 
 	<h1> System customisation </h1>
-	<p> Choosing the options that suits our needs. </p>
+	<p> Flashboot is a framework that allow many customisations. Our goal is to strip the user and kernel space to fit our needs.
+            Make sure to understand what Flashboot is fully capable of by reading the
+	<a href="https://github.com/openbsd/flashboot/blob/master/README.md">documentation</a>.</p>
+
+	<hr/><pre>
+	<a href="list">flashboot/list</a> The list of userspace programs and configuration files to be copied.<br/>
+	<a href="SOEKRIS4501">flashboot/SOEKRIS4501</a> The kernel configuration.<br/>
+	<a href="libcopy.sh">flashboot/tools/libcopy.sh</a> Tweaked to strip librairies before copying them.<br/><hr/></pre>
+
+	<p> The files provided here are just examples to help you getting started in your customisation journey. Please take note that in my case, the kernel option BUFCACHEPERCENT had to be set to 0, otherwise my embedded system was freezing sometimes.</p>
 
 	<h1> Building the kernel </h1>
 	<p> The kernel is compiled, an the ramdisk is piggybacked into it. </p>
@@ -219,6 +232,12 @@
 
 	<h1> Booting OpenBSD </h1>
 	<p> OpenBSD is booted from the net4501 and a login is prompted. </p>
+	<p> Just a highlight here, you must type these commands at the boot prompt until you add a file 
+	<a href="http://www.openbsd.org/cgi-bin/man.cgi?query=boot.conf&apropos=0&sektion=0&manpath=OpenBSD+Current&arch=i386&format=html">etc/boot.conf</a> that contain thems.</p>
+	<hr/><pre>
+	boot> stty com0 19200
+	boot> set tty com0</hr></pre>
+
 	<hr/><pre>
 	comBIOS ver. 1.33  20080103  Copyright (C) 2000-2007 Soekris Engineering.
 
@@ -304,6 +323,8 @@
 	OpenBSD/i386 (localhost) (tty00)
 
 	login:<hr/></pre>
+
+	<p> Congratulation , you've made it through ! </p>
 	</body>
 
 </html>
